@@ -538,33 +538,40 @@ const lineEmbed = new EmbedBuilder()
         const userData = xpData.users[userId] || { xp: 0, level: 1, messages: 0 };
         const money = economyData.users[userId]?.money || 0;
         
-        const requiredXp = userData.level * 102;
+        const requiredXp = (Math.pow(userData.level, 2) * 50) + (userData.level * 100);
+        
         const xpCurrent = userData.xp;
         const percentage = Math.min((xpCurrent / requiredXp) * 100, 100).toFixed(1);
         const barSize = 15;
         const progress = Math.round((xpCurrent / requiredXp) * barSize);
         const progressBar = "█".repeat(Math.min(progress, barSize)) + "░".repeat(Math.max(barSize - progress, 0));
 
+        const leaderboard = Object.entries(xpData.users)
+            .sort((a, b) => {
+                if (b[1].level !== a[1].level) return b[1].level - a[1].level;
+                return b[1].xp - a[1].xp;
+            });
+        const globalRank = leaderboard.findIndex(([id]) => id === userId) + 1;
+
         const rankEmbed = new EmbedBuilder()
-            .setAuthor({ name: `User Rank: ${target.user.username}`, iconURL: target.user.displayAvatarURL() })
+            .setAuthor({ name: `User Identity: ${target.user.username}`, iconURL: target.user.displayAvatarURL() })
             .setThumbnail(target.user.displayAvatarURL())
-            .setDescription(`**System Identification:** Verified\n}`)
+            .setDescription(`**System Status:** Verified\n`)
             .addFields(
                 { name: "Level", value: `\`${userData.level}\``, inline: true },
                 { name: "Currency", value: `\`${money}\``, inline: true },
-                { name: "Messages", value: `\`${userData.messages}\``, inline: true },
+                { name: "Total Messages", value: `\`${userData.messages}\``, inline: true },
                 { name: `Progress [${percentage}%]`, value: `\`${progressBar}\` \`${xpCurrent}/${requiredXp}\``, inline: false },
-                { name: "Global Rank", value: `\`#${Object.entries(xpData.users).sort((a, b) => (b[1]?.xp || 0) - (a[1]?.xp || 0)).findIndex(([id]) => id === userId) + 1}\``, inline: true }
+                { name: "Global Rank", value: `\`#${globalRank}\``, inline: true }
             )
             .setColor('#2b2d31')
-            .setFooter({ text: "Lumè Rank" });
+            .setFooter({ text: "Lumè Data Stream" });
 
         await message.channel.send({ embeds: [rankEmbed] });
-        
         await sendLine(message.channel);
 
+        if (message.deletable) await message.delete().catch(() => {});
     }
-
     if (cmd === 'p' || cmd === 'profile') {
         const target = message.mentions.members.first() || message.member;
         const userId = target.user.id;
@@ -930,17 +937,31 @@ const getTimestamp = () => new Date().toLocaleString('en-GB', { timeZone: 'UTC' 
 
 
 
+client.on('messageCreate', async (message) => {
+
+
+const bypassRoles = [config.adminRoleId, "ROLE_ID_1", "ROLE_ID_2"];
+const bypassUsers = [MY_ID, "USER_ID_1", "USER_ID_2"];
+const hasBypass = message.member.roles.cache.some(r => bypassRoles.includes(r.id)) || 
+bypassUsers.includes(message.author.id);
 const forbiddenWords = ["word1", "word2", "انيكه", "قحبة", "انيك",  "zbe", "fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigger", "faggot", "cunt", "slut", "whore", "bastard", "damn", "crap", "douche", "prick", "twat", "nigga", "عرص", "كلب", "خرا", "شرموطة", "شرموط", "قذر", "لعنة", "تبا", "كسخت", "مخنث", "مومس", "عاهرة", "مطي", "غبي", "أحمق", "أهبل", "أبله", "سافل", "وضيع", "حقير", "غبي", "أهبل", "أبله", "سافل", "وضيع", "حقير",]; 
 
-client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-
+    if (hasBypass) return;
     const hasViolation = forbiddenWords.some(word => message.content.toLowerCase().includes(word));
     if (hasViolation) {
         await message.delete();
-        const encrypted = message.content.split('').map(() => Math.round(Math.random())).join('');
-        const warning = await message.channel.send(`System: Unauthorized word detected. \`${encrypted}\`\n**Action:** Original data removed. Review channel guidelines.`);
-        setTimeout(() => warning.delete(), 5000);
+       const encrypted = message.content
+            .split('')
+            .map(() => Math.round(Math.random()))
+            .join('');
+
+        const warn = await message.channel.send(
+            `System: Unauthorized detected by <@${message.author.id}>.\n` +
+            `Status: Encrypted.\n` +
+            `Hash: \`${encrypted}\``
+        );
+        setTimeout(() => warn.delete(), 5000);
     }
 });
 client.on('messageUpdate', async (oldMsg, newMsg) => {
