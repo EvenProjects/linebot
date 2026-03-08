@@ -1,0 +1,11 @@
+.env
+env
+node_modules
+logs
+data
+config.json
+economy.json
+i.js
+info.json
+xp.json
+channel.json
