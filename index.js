@@ -82,11 +82,10 @@ function saveChannels() {
     fs.writeFileSync('./channels.json', JSON.stringify(channelsData, null, 2));
 }
 
-function sendLine(channel) {
-    const file = new AttachmentBuilder(path.join(__dirname, config.lineUrl), { name: 'line.png' });
-    return channel.send({ files: [file] }).catch((err) => console.error("Line sending failed:", err));
+async function sendLine(channel) {
+    const file = new AttachmentBuilder('./line.png', { name: 'line.png' });
+    return channel.send({ files: [file] }).catch(() => {});
 }
- 
 async function fetchAllMessages(channel) {
     let allMessages = [];
     let lastId;
@@ -144,6 +143,10 @@ if (isInAutoCategory || isManualChannel) {
         if (message.content !== "-") {
             sendLine(message.channel).catch(() => {});
         }
+    }
+    if (message.content === "-" && (isAdmin || isOwner)) {
+        if (message.deletable) await message.delete().catch(() => {});
+        return await sendLine(message.channel);
     }
 
     const content = message.content.toLowerCase();
@@ -442,7 +445,7 @@ const lineEmbed = new EmbedBuilder()
         }
     }
 
-    if (cmd === 'colorroles' && isOwner) {
+    if (cmd === 'cro' && isOwner) {
         const targetChannel = message.mentions.channels.first();
         if (!targetChannel) return message.reply("colorroles #channel");
         
@@ -478,54 +481,88 @@ const lineEmbed = new EmbedBuilder()
         message.reply("Color roles message created.").then(m => setTimeout(() => m.delete(), 3000));
     }
 
-    if (cmd === 'settheme' && isOwner) {
+    if (cmd === 'sth' && isOwner) {
         const url = args[0];
-        if (!url) return message.reply("settheme <url>");
+        if (!url) return message.reply("sth <url>");
         config.profileTheme = url;
         saveConfig();
         message.reply("Profile theme updated.").then(m => setTimeout(() => m.delete(), 3000));
     }
     
-if (content.startsWith('st ') && isOwner) {
-        const argsWithoutCmd = args.slice(1);
-        const status = argsWithoutCmd[0];
-        const activity = argsWithoutCmd.slice(1).join(' ');
+    if (content.startsWith('st ') && isOwner) {
         
-        if (status && activity) {
-            const validStatuses = ['online', 'idle', 'dnd', 'invisible'];
-            if (validStatuses.includes(status)) {
+        const parts = content.split(/ +/); 
+        const typeInput = parts[1]?.trim(); 
+        const statusArg = parts[2]?.toLowerCase()?.trim(); 
+        const activityName = parts.slice(3).join(' ');
+
+        const activityMap = {
+            '0': 0, 'playing': 0,
+            '1': 1, 'streaming': 1,
+            '2': 2, 'listening': 2,
+            '3': 3, 'watching': 3,
+            '5': 5, 'competing': 5
+        };
+
+        const validStatuses = ['online', 'idle', 'dnd', 'invisible'];
+        const targetType = activityMap[typeInput];
+
+        if (targetType !== undefined && validStatuses.includes(statusArg) && activityName) {
+            try {
                 client.user.setPresence({
-                    activities: [{ name: activity, type: 0 }],
-                    status: status
+                    activities: [{ 
+                        name: activityName, 
+                        type: targetType,
+                        url: targetType === 1 ? "https://www.twitch.tv/alexander5_fi" : undefined 
+                    }],
+                    status: statusArg
                 });
-                message.reply("Status updated.").then(m => setTimeout(() => m.delete(), 3000));
-                if (message.deletable) await message.delete();
+
+                message.reply(`System: Presence initialized.`)
+                    .then(m => setTimeout(() => m.delete(), 3000));
+                
+                if (message.deletable) await message.delete().catch(() => {});
+            } catch (err) {
+                console.error("Presence Update Failed:", err);
+                message.reply("System: Internal Error.");
             }
+        } else {
+            message.reply(`System: Invalid Parameters. `)
+                .then(m => setTimeout(() => m.delete(), 5000));
         }
     }
-
-if (cmd === 'rank' || cmd === 'r') {
+    if (cmd === 'rank' || cmd === 'r') {
         const target = message.mentions.members.first() || message.member;
         const userId = target.user.id;
+        
         const userData = xpData.users[userId] || { xp: 0, level: 1, messages: 0 };
         const money = economyData.users[userId]?.money || 0;
-        const requiredXp = userData.level * 100;
-        const progress = Math.floor((userData.xp / requiredXp) * 20);
-        const progressBar = "▓".repeat(progress) + "░".repeat(20 - progress);
         
+        const requiredXp = userData.level * 102;
+        const xpCurrent = userData.xp;
+        const percentage = Math.min((xpCurrent / requiredXp) * 100, 100).toFixed(1);
+        const barSize = 15;
+        const progress = Math.round((xpCurrent / requiredXp) * barSize);
+        const progressBar = "█".repeat(Math.min(progress, barSize)) + "░".repeat(Math.max(barSize - progress, 0));
+
         const rankEmbed = new EmbedBuilder()
-            .setTitle(target.user.username)
+            .setAuthor({ name: `User Rank: ${target.user.username}`, iconURL: target.user.displayAvatarURL() })
             .setThumbnail(target.user.displayAvatarURL())
+            .setDescription(`**System Identification:** Verified\n}`)
             .addFields(
-                { name: "Level", value: `${userData.level}`, inline: true },
-                { name: "XP", value: `${userData.xp}/${requiredXp}`, inline: true },
-                { name: "Messages", value: `${userData.messages}`, inline: true },
-                { name: "Progress", value: `${progressBar}`, inline: false },
-                { name: "Money", value: `${money}`, inline: true }
+                { name: "Level", value: `\`${userData.level}\``, inline: true },
+                { name: "Currency", value: `\`${money}\``, inline: true },
+                { name: "Messages", value: `\`${userData.messages}\``, inline: true },
+                { name: `Progress [${percentage}%]`, value: `\`${progressBar}\` \`${xpCurrent}/${requiredXp}\``, inline: false },
+                { name: "Global Rank", value: `\`#${Object.entries(xpData.users).sort((a, b) => (b[1]?.xp || 0) - (a[1]?.xp || 0)).findIndex(([id]) => id === userId) + 1}\``, inline: true }
             )
-            .setColor('#2b2d31');
-        
+            .setColor('#2b2d31')
+            .setFooter({ text: "Lumè Rank" });
+
         await message.channel.send({ embeds: [rankEmbed] });
+        
+        await sendLine(message.channel);
+
     }
 
     if (cmd === 'p' || cmd === 'profile') {
@@ -743,7 +780,7 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'timeout' && (isAdmin || isOwner)) {
+    if (cmd === 'timeout' || cmd === 'اص' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const minutes = parseInt(args[1]);
         if (!member || !minutes) return message.reply("timeout @user <minutes>");
@@ -893,7 +930,7 @@ const getTimestamp = () => new Date().toLocaleString('en-GB', { timeZone: 'UTC' 
 
 
 
-const forbiddenWords = ["word1", "word2"]; 
+const forbiddenWords = ["word1", "word2", "انيكه", "قحبة", "انيك",  "zbe", "fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigger", "faggot", "cunt", "slut", "whore", "bastard", "damn", "crap", "douche", "prick", "twat", "nigga", "عرص", "كلب", "خرا", "شرموطة", "شرموط", "قذر", "لعنة", "تبا", "كسخت", "مخنث", "مومس", "عاهرة", "مطي", "غبي", "أحمق", "أهبل", "أبله", "سافل", "وضيع", "حقير", "غبي", "أهبل", "أبله", "سافل", "وضيع", "حقير",]; 
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
