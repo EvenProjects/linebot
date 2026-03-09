@@ -12,7 +12,47 @@ const {
 } = require('discord.js');
 const fs = require('fs');
 const config = require('./config.json');
+const { createCanvas } = require('canvas');
 
+function createCaptchaImage(text) {
+    const canvas = createCanvas(180, 60); 
+    const ctx = canvas.getContext('2d');
+
+  
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    
+    for (let i = 0; i < 25; i++) {
+        ctx.strokeStyle = `rgba(0,0,0,${Math.random() * 0.3})`;
+        ctx.lineWidth = Math.random() * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+        ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+        ctx.stroke();
+    }
+
+    
+    for (let i = 0; i < 150; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.5})`;
+        ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 1, 1);
+    }
+
+    ctx.font = 'bold 30px Courier New';
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    
+    const startX = 30;
+    for (let i = 0; i < text.length; i++) {
+        ctx.save();
+        ctx.translate(startX + (i * 25), 35 + (Math.random() * 10 - 5));
+        ctx.rotate((Math.random() - 0.5) * 0.6); 
+        ctx.fillText(text[i], 0, 0);
+        ctx.restore();
+    }
+
+    return canvas.toBuffer();
+}
 const MY_ID = "1094664981305372852";
 let channelsData = { allowedChannels: [] };
 let infoData = { tickets: [], ticketCount: 0, security: { maxTicketsPerUser: 1, activeTickets: {} }, afk: {}, giveaways: {}, profileThemes: {} };
@@ -52,21 +92,21 @@ if (fs.existsSync('./xp.json')) {
 function saveXp() {
     fs.writeFileSync('./xp.json', JSON.stringify(xpData, null, 2));
 }
-
+const pendingTransfers = new Map();
 let economyData = { users: {}, dailyCooldown: {} };
+const economyPath = './economy.json';
 
-if (fs.existsSync('./economy.json')) {
+if (fs.existsSync(economyPath)) {
     try {
-        const data = fs.readFileSync('./economy.json', 'utf8');
-        economyData = JSON.parse(data);
+        economyData = JSON.parse(fs.readFileSync(economyPath, 'utf8'));
     } catch (e) {
-        economyData = { users: {}, dailyCooldown: {} };
+        console.error("System Error: Economy database corrupted.");
+        economyData = { users: {} };
     }
 }
 
-function saveEconomy() {
-    fs.writeFileSync('./economy.json', JSON.stringify(economyData, null, 2));
-}
+const saveEconomy = () => fs.writeFileSync(economyPath, JSON.stringify(economyData, null, 2));
+
 
 const client = new Client({
     intents: [
@@ -191,10 +231,31 @@ if (message.author.bot) return;
 
 
 
+if (cmd === 'daily' || cmd === 'd' || cmd === 'يومي') {
+    const cooldown = 86400000;
+    const lastDaily = economyData.users[userId]?.lastDaily || 0;
 
+    if (Date.now() - lastDaily < cooldown) {
+        const remaining = cooldown - (Date.now() - lastDaily);
+        const hours = Math.floor(remaining / 3600000);
+        const mins = Math.floor((remaining % 3600000) / 60000);
+        return message.reply(`System: locked. Access available in ${hours}h ${mins}m.`);
+    }
 
+    const randomReward = Math.floor(Math.random() * 5000) + 1;
+    
+    economyData.users[userId].money += randomReward;
+    economyData.users[userId].lastDaily = Date.now();
+    saveEconomy();
 
+    const embed = new EmbedBuilder()
+        .setAuthor({ name: "Daily Synchronized", iconURL: client.user.displayAvatarURL() })
+        .setDescription(`> **Amount:** \`${randomReward}\` Lumès\n.`)
+        .setColor('#2b2d31');
 
+    await message.reply({ embeds: [embed] });
+    await sendLine(message.channel);
+}
 if (config.allowedChannels.includes(message.channel.id)) {
     if (message.content !== "-") {
         await sendLine(message.channel);
@@ -447,7 +508,7 @@ const lineEmbed = new EmbedBuilder()
 
     if (cmd === 'cro' && isOwner) {
         const targetChannel = message.mentions.channels.first();
-        if (!targetChannel) return message.reply("colorroles #channel");
+        if (!targetChannel) return message.reply("cro #channel");
         
         const colors = [
             { name: "Red", color: "#FF0000", emoji: "🔴" },
@@ -559,7 +620,7 @@ const lineEmbed = new EmbedBuilder()
             .setDescription(`**System Status:** Verified\n`)
             .addFields(
                 { name: "Level", value: `\`${userData.level}\``, inline: true },
-                { name: "Currency", value: `\`${money}\``, inline: true },
+                { name: "Lumès", value: `\`${money}\``, inline: true },
                 { name: "Total Messages", value: `\`${userData.messages}\``, inline: true },
                 { name: `Progress [${percentage}%]`, value: `\`${progressBar}\` \`${xpCurrent}/${requiredXp}\``, inline: false },
                 { name: "Global Rank", value: `\`#${globalRank}\``, inline: true }
@@ -590,7 +651,7 @@ const lineEmbed = new EmbedBuilder()
                 { name: "Level", value: `${userData.level}`, inline: true },
                 { name: "Global Rank", value: `#${globalRank}`, inline: true },
                 { name: "XP", value: `${userData.xp}`, inline: true },
-                { name: "Money", value: `${money}`, inline: true },
+                { name: "Lumès", value: `${money}`, inline: true },
                 { name: "Messages", value: `${userData.messages}`, inline: true },
                 { name: "Joined", value: `${target.joinedAt.toDateString()}`, inline: true }
             )
@@ -614,7 +675,7 @@ const lineEmbed = new EmbedBuilder()
         await message.channel.send({
             content: `${target.user.displayAvatarURL()}`
         });
-        await message.channel.send(`**${target.user.username}**\nLevel: ${userData.level}\nRank: #${globalRank}\nMoney: ${money}`);
+        await message.channel.send(`**${target.user.username}**\nLevel: ${userData.level}\nRank: #${globalRank}\nLumès: ${money}`);
     }
 
     if (cmd === 'top' && (isAdmin || isOwner)) {
@@ -694,6 +755,89 @@ if (leaderboard.length === 0) {
         if (message.deletable) await message.delete();
     }
 
+if (cmd === 'c') {
+    const target = message.mentions.members.first();
+    const amount = parseInt(args[1]);
+
+  
+    if (!economyData.users[message.author.id]) economyData.users[message.author.id] = { money: 0, lastDaily: 0 };
+
+    
+    if (!target) {
+        const bal = economyData.users[message.author.id]?.money || 0;
+        const embed = new EmbedBuilder()
+            .setAuthor({ name: `Assets: ${message.author.username}`, iconURL: message.author.displayAvatarURL() })
+            .setDescription(`> **Personal Balance:** \`${bal}\` Lumès\n> **Status:** Synchronized`)
+            .setColor('#2b2d31');
+        
+        await message.reply({ embeds: [embed] });
+        return await sendLine(message.channel);
+    }
+
+   
+    if (target && isNaN(amount)) {
+        const targetBal = economyData.users[target.id]?.money || 0;
+        const embed = new EmbedBuilder()
+            .setAuthor({ name: `Assets: ${target.user.username}`, iconURL: target.user.displayAvatarURL() })
+            .setDescription(`> **User Balance:** \`${targetBal}\` Lumès\n`)
+            .setColor('#2b2d31');
+
+        await message.reply({ embeds: [embed] });
+        return await sendLine(message.channel);
+    }
+
+    
+    if (target && !isNaN(amount)) {
+       
+        if (target.id === message.author.id) return message.reply("System Error: Self-transfer Blocked.");
+        if (amount <= 0) return message.reply("System: Invalid Lumès.");
+        if (economyData.users[message.author.id].money < amount) return message.reply("System: Insufficient Lumès.");
+
+       
+        const captchaCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const imageBuffer = createCaptchaImage(captchaCode); 
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'captcha.png' });
+
+       
+        pendingTransfers.set(message.author.id, { 
+            targetId: target.id, 
+            amount: amount, 
+            code: captchaCode 
+        });
+
+        await message.reply({
+            content: `**\nConfirm \`${amount}\` Lumès to <@${target.id}> `,
+            files: [attachment]
+        });
+
+        
+        setTimeout(() => {
+            if (pendingTransfers.has(message.author.id)) pendingTransfers.delete(message.author.id);
+        }, 20000);
+        return;
+    }
+}
+
+if (pendingTransfers.has(message.author.id)) {
+        const session = pendingTransfers.get(message.author.id);
+
+    if (message.content.trim() === session.code) {
+        economyData.users[message.author.id].money -= session.amount;
+        if (!economyData.users[session.targetId]) economyData.users[session.targetId] = { money: 0, lastDaily: 0 };
+        economyData.users[session.targetId].money += session.amount;
+
+        saveEconomy();
+        pendingTransfers.delete(message.author.id);
+
+        const successEmbed = new EmbedBuilder()
+            .setAuthor({ name: "Transaction Verified", iconURL: client.user.displayAvatarURL() })
+            .setDescription(`> **Amount:** \`${session.amount}\` Lumès\n> **Target:** <@${session.targetId}>\n`)
+            .setColor('#2b2d31');
+
+        await message.reply({ embeds: [successEmbed] });
+        return await sendLine(message.channel);
+    }
+}
     if (cmd === 'afk') {
         const reason = args.join(' ') || "No reason";
         infoData.afk[message.author.id] = {
@@ -705,6 +849,35 @@ if (leaderboard.length === 0) {
         if (message.deletable) await message.delete();
     }
 
+if (cmd === 'am' && isOwner) {
+    const target = message.mentions.members.first();
+    const amount = parseInt(args[1]);
+
+    if (!target || isNaN(amount)) return message.reply("System: Define target.");
+
+    if (!economyData.users[target.id]) economyData.users[target.id] = { money: 0, lastDaily: 0 };
+    
+    economyData.users[target.id].money += amount;
+    saveEconomy();
+
+    message.reply(`System: [${amount}] Added into <@${target.id}> Bank.`);
+    await sendLine(message.channel);
+}
+
+if (cmd === 'rm' && isOwner) {
+    const target = message.mentions.members.first();
+    const amount = parseInt(args[1]);
+
+    if (!target || isNaN(amount)) return message.reply("System: Define target.");
+
+    if (economyData.users[target.id]) {
+        economyData.users[target.id].money = Math.max(0, economyData.users[target.id].money - amount);
+        saveEconomy();
+    }
+
+    message.reply(`System: [${amount}] purged from <@${target.id}>.`);
+    await sendLine(message.channel);
+}
     if (cmd === 'gstart' && (isAdmin || isOwner)) {
         const duration = parseInt(args[0]);
         const prize = args.slice(1).join(' ');
@@ -761,7 +934,7 @@ if (leaderboard.length === 0) {
         if (message.deletable) await message.delete();
     }
 
-    if (cmd === 'ban' && (isAdmin || isOwner)) {
+    if (cmd === 'برا' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const reason = args.slice(1).join(' ') || "No reason";
         if (!member) return message.reply("ban @user <reason>");
@@ -774,7 +947,7 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'kick' && (isAdmin || isOwner)) {
+    if (cmd === 'هش' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const reason = args.slice(1).join(' ') || "No reason";
         if (!member) return message.reply("kick @user <reason>");
@@ -787,7 +960,7 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'timeout' || cmd === 'اص' && (isAdmin || isOwner)) {
+    if (cmd === 'timeout' || cmd === 'اص' || cmd === 'تايم' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const minutes = parseInt(args[1]);
         if (!member || !minutes) return message.reply("timeout @user <minutes>");
@@ -800,7 +973,7 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'nickname' && (isAdmin || isOwner)) {
+    if (cmd === 'nickname' || cmd === 'nick' || cmd === 'نك' || cmd === 'نيم' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const nickname = args.slice(1).join(' ');
         if (!member || !nickname) return message.reply("nickname @user <name>");
@@ -813,7 +986,7 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'addrole' && (isAdmin || isOwner)) {
+    if (cmd === 'addrole' || cmd === 'ar' || cmd === 'ر' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const role = message.mentions.roles.first();
         if (!member || !role) return message.reply("addrole @user @role");
@@ -826,7 +999,7 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'removerole' && (isAdmin || isOwner)) {
+    if (cmd === 'removerole' || cmd === 'rr' || cmd === 'رر' && (isAdmin || isOwner)) {
         const member = message.mentions.members.first();
         const role = message.mentions.roles.first();
         if (!member || !role) return message.reply("removerole @user @role");
@@ -839,61 +1012,20 @@ if (leaderboard.length === 0) {
         }
     }
 
-    if (cmd === 'daily') {
-        const userId = message.author.id;
-        const now = Date.now();
-        const lastDaily = economyData.dailyCooldown[userId] || 0;
-        const cooldown = 24 * 60 * 60 * 1000;
-        
-        if (now - lastDaily < cooldown) {
-            const remaining = Math.ceil((cooldown - (now - lastDaily)) / (1000 * 60));
-            return message.reply(`Daily already claimed. Next in ${remaining} minutes.`);
-        }
-        
-        const dailyAmount = Math.floor(Math.random() * 500) + 500;
-        if (!economyData.users[userId]) economyData.users[userId] = { money: 0 };
-        economyData.users[userId].money += dailyAmount;
-        economyData.dailyCooldown[userId] = now;
-        saveEconomy();
-        
-        message.reply(`Daily: +${dailyAmount} coins`).then(m => setTimeout(() => m.delete(), 3000));
-    }
 
-    if (cmd === 'c') {
-        const userId = message.author.id;
-        const target = message.mentions.users.first();
-        
-        if (target) {
-            const amount = parseInt(args[1]);
-            if (!amount || amount <= 0) return message.reply("c @user <amount>");
-            if (!economyData.users[userId] || economyData.users[userId].money < amount) {
-                return message.reply("Insufficient funds.");
-            }
-            if (!economyData.users[target.id]) economyData.users[target.id] = { money: 0 };
-            economyData.users[userId].money -= amount;
-            economyData.users[target.id].money += amount;
-            saveEconomy();
-            message.reply(`Transferred ${amount} To <@${target.id}>`).then(m => setTimeout(() => m.delete(), 3000));
-        } else {
-            const money = economyData.users[userId]?.money || 0;
-            message.reply(`Balance: ${money}`).then(m => setTimeout(() => m.delete(), 5000));
-        }
-    }
-
-    const userId = message.author.id;
     const xpGain = Math.floor(Math.random() * 5) + 1;
     
-    if (!xpData.users[userId]) {
-        xpData.users[userId] = { xp: 0, level: 1, messages: 0 };
+    if (!xpData.users[message.author.id]) {
+        xpData.users[message.author.id] = { xp: 0, level: 1, messages: 0 };
     }
-    xpData.users[userId].xp += xpGain;
-    xpData.users[userId].messages += 1;
+    xpData.users[message.author.id].xp += xpGain;
+    xpData.users[message.author.id].messages += 1;
     
-    const userXp = xpData.users[userId];
+    const userXp = xpData.users[message.author.id];
     const requiredXp = userXp.level * 100;
     if (userXp.xp >= requiredXp) {
         userXp.level++;
-        message.channel.send(`<@${userId}> Level ${userXp.level}`).then(m => setTimeout(() => m.delete(), 5000));
+        message.channel.send(`<@${message.author.id}> Level ${userXp.level}`).then(m => setTimeout(() => m.delete(), 5000));
     }
     
     const hour = new Date().getHours();
@@ -901,31 +1033,31 @@ if (leaderboard.length === 0) {
     const date = new Date().toDateString();
     const hourKey = `${date}_${hour}`;
     
-    if (!xpData.hourly[userId]) xpData.hourly[userId] = { xp: 0 };
-    xpData.hourly[userId].xp += xpGain;
+    if (!xpData.hourly[message.author.id]) xpData.hourly[message.author.id] = { xp: 0 };
+    xpData.hourly[message.author.id].xp += xpGain;
     
-    if (!xpData.daily[userId]) xpData.daily[userId] = { xp: 0, date: date };
-    if (xpData.daily[userId].date !== date) {
-        xpData.daily[userId] = { xp: xpGain, date: date };
+    if (!xpData.daily[message.author.id]) xpData.daily[message.author.id] = { xp: 0, date: date };
+    if (xpData.daily[message.author.id].date !== date) {
+        xpData.daily[message.author.id] = { xp: xpGain, date: date };
     } else {
-        xpData.daily[userId].xp += xpGain;
+        xpData.daily[message.author.id].xp += xpGain;
     }
     
     const month = new Date().getMonth();
     const monthKey = `${new Date().getFullYear()}_${month}`;
-    if (!xpData.monthly[userId]) xpData.monthly[userId] = { xp: 0, month: monthKey };
-    if (xpData.monthly[userId].month !== monthKey) {
-        xpData.monthly[userId] = { xp: xpGain, month: monthKey };
+    if (!xpData.monthly[message.author.id]) xpData.monthly[message.author.id] = { xp: 0, month: monthKey };
+    if (xpData.monthly[message.author.id].month !== monthKey) {
+        xpData.monthly[message.author.id] = { xp: xpGain, month: monthKey };
     } else {
-        xpData.monthly[userId].xp += xpGain;
+        xpData.monthly[message.author.id].xp += xpGain;
     }
     
     const weekStart = Math.floor(new Date().getTime() / (7 * 24 * 60 * 60 * 1000));
-    if (!xpData.weekly[userId]) xpData.weekly[userId] = { xp: 0, week: weekStart };
-    if (xpData.weekly[userId].week !== weekStart) {
-        xpData.weekly[userId] = { xp: xpGain, week: weekStart };
+    if (!xpData.weekly[message.author.id]) xpData.weekly[message.author.id] = { xp: 0, week: weekStart };
+    if (xpData.weekly[message.author.id].week !== weekStart) {
+        xpData.weekly[message.author.id] = { xp: xpGain, week: weekStart };
     } else {
-        xpData.weekly[userId].xp += xpGain;
+        xpData.weekly[message.author.id].xp += xpGain;
     }
     
     saveXp();
