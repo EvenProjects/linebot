@@ -55,7 +55,7 @@ function createCaptchaImage(text) {
 }
 const MY_ID = "1094664981305372852";
 let channelsData = { allowedChannels: [] };
-let infoData = { tickets: [], ticketCount: 0, security: { maxTicketsPerUser: 1, activeTickets: {} }, afk: {}, giveaways: {}, profileThemes: {} };
+let infoData = { tickets: [], ticketCount: 0, security: { maxTicketsPerUser: 1, activeTickets: {} }, afk: {}, giveaways: {}, profileThemes: {}, reminders: {}, snipedMessages: {}, invites: {} };
 let xpData = { users: {}, weekly: {}, daily: {}, monthly: {}, hourly: {} };
 
 if (fs.existsSync('./channels.json')) {
@@ -150,6 +150,15 @@ client.on('guildMemberAdd', async (member) => {
     if (!channel) return;
     await channel.send(`Access granted: <@${member.id}>\nSequence: ${member.guild.memberCount}`);
     await sendLine(channel);
+    
+    const invites = await member.guild.invites.fetch();
+    for (const [code, invite] of invites) {
+        if (invite.inviter && invite.uses > 0) {
+            infoData.invites[member.id] = invite.inviter.id;
+            saveInfo();
+            break;
+        }
+    }
 });
 
 client.on('messageCreate', async (message) => {
@@ -678,6 +687,81 @@ const lineEmbed = new EmbedBuilder()
         await message.channel.send(`**${target.user.username}**\nLevel: ${userData.level}\nRank: #${globalRank}\nLumès: ${money}`);
     }
 
+    if (cmd === 'sn' || cmd === 'snipe') {
+        const sniped = infoData.snipedMessages[message.channel.id];
+        if (!sniped) return message.reply("No deleted messages found.");
+        
+        const embed = new EmbedBuilder()
+            .setAuthor({ name: sniped.authorTag, iconURL: sniped.authorAvatar })
+            .setDescription(sniped.content)
+            .setFooter({ text: `#${message.channel.name}` })
+            .setColor('#2b2d31')
+            .setTimestamp(sniped.timestamp);
+        
+        await message.channel.send({ embeds: [embed] });
+    }
+
+    if (cmd === 'inv' || cmd === 'invite') {
+        const target = message.mentions.users.first();
+        if (!target) {
+            const inviter = infoData.invites[message.author.id];
+            if (inviter) {
+                return message.reply(`Invited by: <@${inviter}>`);
+            }
+            return message.reply("No invite data found.");
+        }
+        
+        const inviter = infoData.invites[target.id];
+        if (inviter) {
+            message.reply(`<@${target.id}> invited by: <@${inviter}>`);
+        } else {
+            message.reply(`No invite data for <@${target.id}>`);
+        }
+    }
+
+    if (cmd === 'remind' || cmd === 'تذكر') {
+        const time = parseInt(args[0]);
+        const remindText = args.slice(1).join(' ');
+        
+        if (!time || !remindText) return message.reply("remind <minutes> <text>");
+        
+        const reminderId = Date.now().toString();
+        const remindTime = Date.now() + (time * 60 * 1000);
+        
+        if (!infoData.reminders) infoData.reminders = {};
+        infoData.reminders[reminderId] = {
+            userId: message.author.id,
+            text: remindText,
+            time: remindTime,
+            channelId: message.channel.id
+        };
+        saveInfo();
+        
+        message.reply(`Reminder set for ${time} minutes.`).then(m => setTimeout(() => m.delete(), 3000));
+        
+        setTimeout(async () => {
+            const rem = infoData.reminders[reminderId];
+            if (rem) {
+                const ch = client.channels.cache.get(rem.channelId);
+                if (ch) {
+                    await ch.send(`<@${rem.userId}> Reminder: ${rem.text}`);
+                }
+                delete infoData.reminders[reminderId];
+                saveInfo();
+            }
+        }, time * 60 * 1000);
+    }
+
+    if (cmd === 'leaderboard' && isOwner) {
+        const targetChannel = message.mentions.channels.first();
+        if (!targetChannel) return message.reply("leaderboard #channel");
+        
+        config.leaderboardChannelId = targetChannel.id;
+        saveConfig();
+        
+        message.reply(`Leaderboard channel set to <#${targetChannel.id}>`).then(m => setTimeout(() => m.delete(), 3000));
+    }
+
     if (cmd === 'top' && (isAdmin || isOwner)) {
         const type = args[0]?.toLowerCase();
         let leaderboard = [];
@@ -1165,6 +1249,14 @@ client.on('messageReactionAdd', async (reaction, user) => {
 
 client.on('messageDelete', (message) => {
     if (message.author?.bot) return;
+    
+    infoData.snipedMessages[message.channel.id] = {
+        content: message.content,
+        authorTag: message.author?.tag,
+        authorAvatar: message.author?.displayAvatarURL(),
+        timestamp: message.createdAt
+    };
+    
     const logCh = message.guild.channels.cache.get(config.logChannelId);
     if (!logCh) return;
     logCh.send(`Message Deleted\nAuthor: ${message.author?.tag}\nChannel: <#${message.channel.id}>\nContent: ${message.content || "None/Attachment"}\nTime: ${getTimestamp()}`);
