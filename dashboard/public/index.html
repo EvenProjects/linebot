@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lumè Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0d0f;
+    --surface:   #16161a;
+    --surface2:  #1c1c22;
+    --border:    #2a2a32;
+    --accent:    #5865F2;
+    --accent-h:  #4752C4;
+    --success:   #23a55a;
+    --warn:      #f0b232;
+    --danger:    #e05260;
+    --text:      #e8e8f0;
+    --muted:     #6b6b80;
+    --sidebar-w: 220px;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── Sidebar ────────────────────────────────────────────── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 16px;
+    position: fixed; top: 0; left: 0; bottom: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -.5px;
+    background: linear-gradient(135deg, #fff 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    padding: 4px 8px;
+    margin-bottom: 28px;
+  }
+
+  .nav-section { font-size: .68rem; font-weight: 600; color: var(--muted);
+                  letter-spacing: .08em; text-transform: uppercase;
+                  padding: 0 8px; margin-bottom: 6px; margin-top: 16px; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    margin-bottom: 2px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+  .nav-item .icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .nav-item:hover  { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(88,101,242,.18); color: var(--accent); }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .user-chip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  .user-chip img { width: 32px; height: 32px; border-radius: 50%; }
+  .user-chip .name { font-size: .85rem; font-weight: 600; }
+  .user-chip .tag  { font-size: .72rem; color: var(--muted); }
+
+  /* ── Main ───────────────────────────────────────────────── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 32px 36px;
+    max-width: calc(100vw - var(--sidebar-w));
+  }
+
+  .page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+  .page-sub   { color: var(--muted); font-size: .85rem; margin-bottom: 28px; }
+
+  /* ── Stat cards ─────────────────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    transition: transform .15s, border-color .15s;
+  }
+  .stat-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .stat-label { font-size: .75rem; color: var(--muted); font-weight: 500; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
+  .stat-value { font-size: 1.8rem; font-weight: 700; }
+  .stat-icon  { font-size: 1.2rem; float: right; opacity: .5; }
+
+  /* ── Tables ─────────────────────────────────────────────── */
+  .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 14px; }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 13px 16px;
+    font-size: .875rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  .rank-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    background: var(--surface2);
+    font-size: .8rem;
+    font-weight: 700;
+    border: 1px solid var(--border);
+  }
+  .rank-badge.gold   { background: rgba(240,178,50,.12);  border-color: var(--warn); color: var(--warn); }
+  .rank-badge.silver { background: rgba(180,180,200,.1);  border-color: #aaa; color: #aaa; }
+  .rank-badge.bronze { background: rgba(160,100,60,.12);  border-color: #b87333; color: #b87333; }
+
+  .xp-bar-wrap { width: 100%; background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+  .xp-bar      { height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s ease; }
+
+  /* ── Tabs ────────────────────────────────────────────────── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Logout btn ─────────────────────────────────────────── */
+  .btn-logout {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 9px 12px; margin-top: 8px;
+    border: 1px solid var(--border);
+    background: none; color: var(--muted);
+    border-radius: 10px; font-family: inherit;
+    font-size: .85rem; cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .btn-logout:hover { background: rgba(224,82,96,.12); color: var(--danger); border-color: var(--danger); }
+
+  /* ── Loading ─────────────────────────────────────────────── */
+  .skeleton { background: var(--surface2); border-radius: 6px; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { 0%,100% { opacity:.5; } 50% { opacity:1; } }
+
+  .loading-text { color: var(--muted); font-size: .85rem; padding: 24px; text-align: center; }
+
+  /* ── Status pill ─────────────────────────────────────────── */
+  .pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: .72rem;
+    font-weight: 600;
+  }
+  .pill.online { background: rgba(35,165,90,.15); color: var(--success); }
+  .pill.idle   { background: rgba(240,178,50,.15); color: var(--warn); }
+  .pill.dnd    { background: rgba(224,82,96,.15);  color: var(--danger); }
+  .pill.invisible { background: var(--surface2); color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="logo">Lumè</div>
+
+  <div class="nav-section">Overview</div>
+  <button class="nav-item active" data-section="overview" id="nav-overview">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+    </svg>
+    Overview
+  </button>
+
+  <div class="nav-section">Data</div>
+  <button class="nav-item" data-section="leaderboard" id="nav-leaderboard">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    Leaderboard
+  </button>
+  <button class="nav-item" data-section="economy" id="nav-economy">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+    </svg>
+    Economy
+  </button>
+
+  <div class="sidebar-bottom">
+    <div class="user-chip">
+      <img id="avatarImg" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="avatar"/>
+      <div>
+        <div class="name" id="usernameEl">Loading…</div>
+        <div class="tag"  id="usertagEl"></div>
+      </div>
+    </div>
+    <button class="btn-logout" onclick="location.href='/auth/logout'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Logout
+    </button>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <!-- Overview -->
+  <section class="section active" id="section-overview">
+    <div class="page-title">Overview</div>
+    <div class="page-sub">Live snapshot of Lumè Bot stats</div>
+
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="stat-label">Users Tracked</div><div class="stat-value skeleton" style="width:60px;height:36px;"></div></div>
+      <div class="stat-card"><div class="stat-label">Economy Users</div><div class="stat-value skeleton" style="width:60px;height:36px;"></div></div>
+      <div class="stat-card"><div class="stat-label">Tickets</div><div class="stat-value skeleton" style="width:60px;height:36px;"></div></div>
+      <div class="stat-card"><div class="stat-label">Active Giveaways</div><div class="stat-value skeleton" style="width:60px;height:36px;"></div></div>
+      <div class="stat-card"><div class="stat-label">User Statuses</div><div class="stat-value skeleton" style="width:60px;height:36px;"></div></div>
+    </div>
+  </section>
+
+  <!-- Leaderboard -->
+  <section class="section" id="section-leaderboard">
+    <div class="page-title">XP Leaderboard</div>
+    <div class="page-sub">Top 10 globally ranked users</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>User ID</th><th>Level</th><th>XP</th><th>Progress</th><th>Messages</th>
+        </tr></thead>
+        <tbody id="lbBody"><tr><td colspan="6" class="loading-text">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Economy -->
+  <section class="section" id="section-economy">
+    <div class="page-title">Economy</div>
+    <div class="page-sub">Top 10 Lumès holders</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>User ID</th><th>Lumès Balance</th>
+        </tr></thead>
+        <tbody id="ecoBody"><tr><td colspan="3" class="loading-text">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// ── Navigation ─────────────────────────────────────────────────────────────
+const navItems = document.querySelectorAll('.nav-item');
+navItems.forEach(btn => {
+  btn.addEventListener('click', () => {
+    navItems.forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    const sec = document.getElementById('section-' + btn.dataset.section);
+    if (sec) { sec.classList.add('active'); loadSection(btn.dataset.section); }
+  });
+});
+
+// ── Fetch helpers ──────────────────────────────────────────────────────────
+async function api(endpoint) {
+  const r = await fetch(endpoint);
+  if (!r.ok) throw new Error('API error ' + r.status);
+  return r.json();
+}
+
+function rankBadge(n) {
+  const cls = n === 1 ? 'gold' : n === 2 ? 'silver' : n === 3 ? 'bronze' : '';
+  return `<span class="rank-badge ${cls}">${n}</span>`;
+}
+
+// ── Boot: load user + stats ─────────────────────────────────────────────────
+(async () => {
+  try {
+    const me = await api('/api/me');
+    document.getElementById('avatarImg').src   = me.avatarUrl;
+    document.getElementById('usernameEl').textContent = me.username;
+    document.getElementById('usertagEl').textContent  = me.discriminator !== '0' ? '#' + me.discriminator : '';
+  } catch { location.href = '/login'; }
+
+  loadSection('overview');
+})();
+
+// ── Section loaders ────────────────────────────────────────────────────────
+async function loadSection(name) {
+  if (name === 'overview')     await loadStats();
+  if (name === 'leaderboard')  await loadLeaderboard();
+  if (name === 'economy')      await loadEconomy();
+}
+
+async function loadStats() {
+  try {
+    const d = await api('/api/stats');
+    const grid = document.getElementById('statsGrid');
+    grid.innerHTML = `
+      ${statCard('Users Tracked',    d.totalUsers,    '👥')}
+      ${statCard('Economy Users',    d.totalEcoUsers, '💰')}
+      ${statCard('Tickets',          d.ticketCount,   '🎫')}
+      ${statCard('Active Giveaways', d.giveaways,     '🎁')}
+      ${statCard('User Statuses',    d.userStatuses,  '🟢')}
+    `;
+  } catch(e) { console.error(e); }
+}
+
+function statCard(label, value, icon) {
+  return `<div class="stat-card">
+    <div class="stat-label">${label} <span class="stat-icon">${icon}</span></div>
+    <div class="stat-value">${value}</div>
+  </div>`;
+}
+
+async function loadLeaderboard() {
+  const tbody = document.getElementById('lbBody');
+  try {
+    const rows = await api('/api/leaderboard');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="loading-text">No data.</td></tr>'; return; }
+    tbody.innerHTML = rows.map(u => {
+      const reqXp = Math.pow(u.level, 2) * 50 + u.level * 100;
+      const pct   = Math.min((u.xp / reqXp) * 100, 100).toFixed(0);
+      return `<tr>
+        <td>${rankBadge(u.rank)}</td>
+        <td style="font-family:monospace;font-size:.8rem">${u.id}</td>
+        <td>${u.level}</td>
+        <td>${u.xp.toLocaleString()}</td>
+        <td style="width:120px">
+          <div class="xp-bar-wrap"><div class="xp-bar" style="width:${pct}%"></div></div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:3px">${pct}%</div>
+        </td>
+        <td>${u.messages.toLocaleString()}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-text">Failed to load.</td></tr>';
+  }
+}
+
+async function loadEconomy() {
+  const tbody = document.getElementById('ecoBody');
+  try {
+    const rows = await api('/api/economy');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="3" class="loading-text">No data.</td></tr>'; return; }
+    tbody.innerHTML = rows.map(u => `<tr>
+      <td>${rankBadge(u.rank)}</td>
+      <td style="font-family:monospace;font-size:.8rem">${u.id}</td>
+      <td>💰 ${u.money.toLocaleString()} Lumès</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="3" class="loading-text">Failed to load.</td></tr>';
+  }
+}
+</script>
+</body>
+</html>
